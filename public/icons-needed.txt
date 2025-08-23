@@ -1,0 +1,19 @@
+PWA Icons Needed:
+
+Create the following icon files:
+- pwa-192x192.png (192x192 pixels)
+- pwa-512x512.png (512x512 pixels)
+- apple-touch-icon.png (180x180 pixels)
+- mask-icon.svg (SVG format)
+
+Recommended design:
+- Background color: #fc4c02 (Strava orange)
+- Icon: Running person or map pin symbol
+- White icon on orange background
+
+You can use online tools like:
+- https://realfavicongenerator.net/
+- https://www.favicon-generator.org/
+- Canva or similar design tools
+
+The icons should represent the app's purpose of visualizing Strava activities on a map.
