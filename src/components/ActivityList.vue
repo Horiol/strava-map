@@ -158,7 +158,7 @@ const totalDistance = computed(() => {
   return props.activities.reduce((sum, activity) => sum + activity.distance, 0)
 })
 
-const getActivityColor = (type: string): string => {
+const getActivityColor = (type: string): string | undefined => {
   const colors: Record<string, string> = {
     Ride: '#fc4c02',
     Run: '#e34902',
@@ -170,7 +170,7 @@ const getActivityColor = (type: string): string => {
     WeightTraining: '#4b0082',
     default: '#fc4c02',
   }
-  return colors[type] || colors.default
+    return colors[type] ?? colors.default
 }
 
 const formatDate = (dateString: string): string => {

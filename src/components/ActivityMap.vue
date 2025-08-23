@@ -96,7 +96,7 @@ const initializeMap = () => {
   activityLayers = L.layerGroup().addTo(map)
 }
 
-const getActivityColor = (type: string): string => {
+const getActivityColor = (type: string): string | undefined => {
   const colors: Record<string, string> = {
     Ride: '#fc4c02', // Strava orange
     Run: '#e34902',
@@ -108,7 +108,7 @@ const getActivityColor = (type: string): string => {
     WeightTraining: '#4b0082',
     default: '#fc4c02',
   }
-  return colors[type] || colors.default
+    return colors[type] ?? colors.default
 }
 
 const addActivitiesToMap = () => {
