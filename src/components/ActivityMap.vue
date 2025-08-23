@@ -331,6 +331,13 @@ onUnmounted(() => {
   height: 100%;
   width: 100%;
   z-index: 1;
+  min-height: 300px;
+}
+
+@media (max-width: 600px) {
+  .activity-map {
+    min-height: 60vh;
+  }
 }
 
 .map-loading {
