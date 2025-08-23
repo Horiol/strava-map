@@ -45,7 +45,7 @@ export class StravaService {
   private accessToken: string | null = null
   private activitiesCacheKey = 'strava_activities_cache'
   private activitiesCacheTimeKey = 'strava_activities_cache_time'
-  private cacheTTL = 60 * 60 // 1 hour in seconds
+  private cacheTTL = 60 * 60 * 24
 
   constructor(config: StravaConfig) {
     this.config = config

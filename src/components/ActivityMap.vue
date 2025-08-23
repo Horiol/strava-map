@@ -23,7 +23,7 @@ const zoomToUserLocation = () => {
     (pos) => {
       const lat = pos.coords.latitude
       const lng = pos.coords.longitude
-      map.setView([lat, lng], 14, { animate: true })
+      map!.setView([lat, lng], 14, { animate: true })
       // Optionally add a marker for user location
       L.marker([lat, lng], {
         icon: L.divIcon({
@@ -32,7 +32,7 @@ const zoomToUserLocation = () => {
           iconSize: [18, 18],
           iconAnchor: [9, 9],
         }),
-      }).addTo(map)
+      }).addTo(map!)
     },
     (err) => {
       alert('Unable to retrieve your location.')
