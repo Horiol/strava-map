@@ -1,12 +1,10 @@
 import { App as CapacitorApp } from '@capacitor/app';
+import router from './router';
 
 // Listen for deep link redirects (OAuth callback)
 CapacitorApp.addListener('appUrlOpen', (event: { url: string }) => {
-  // Example: stravamap://auth/callback?code=...
-  if (event.url && event.url.startsWith('stravamap://auth/callback')) {
-    // You can use window.location.href = event.url or parse the code and route in your app
-    // For example, use your router to navigate to the callback handler
-    // router.push({ path: '/auth/callback', query: { ... } })
-    // Or handle the OAuth code directly here
+  const slug = event.url.split('amplify.com').pop();
+  if (slug){
+    router.push({ path: slug });
   }
 });

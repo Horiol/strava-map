@@ -1,0 +1,5 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target" : { "namespace": "android_app", "package_name": "stravamap.horiol.name",
+               "sha256_cert_fingerprints": ["61:07:FF:5C:57:2C:BB:1F:04:B1:49:3A:59:A1:16:10:15:39:0B:93:6B:AA:C9:23:02:B6:B0:00:C3:CB:06:69"] }
+}]
