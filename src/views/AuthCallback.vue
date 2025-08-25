@@ -16,7 +16,7 @@
     if (Capacitor.isNativePlatform() && code) {
       // Redirect to custom scheme for native app
       console.log('Redirecting to native app scheme');
-      window.location.href = `myapp://auth/callback?code=${code}`;
+      window.location.href = `stravamap://auth/callback?code=${code}`;
     } else if (code) {
       console.log('Authorization code received:', code);
       // Redirect to home page after processing
