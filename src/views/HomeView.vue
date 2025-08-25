@@ -118,6 +118,37 @@
 </script>
 
 <template>
+  <!-- Header controls via Teleport -->
+  <Teleport to=".header-right">
+    <!-- Mobile list toggle -->
+    <button
+      v-if="isAuthenticated && isMobile"
+      @click="toggleMobileList"
+      class="mobile-list-toggle"
+      :class="{ active: showMobileList }"
+    >
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <!-- Authentication buttons -->
+    <button
+      v-if="!isAuthenticated"
+      @click="authenticateWithStrava"
+      class="auth-button"
+      :disabled="loading"
+    >
+      <span class="strava-logo">STRAVA</span>
+      Connect with Strava
+    </button>
+
+    <div v-else class="auth-controls">
+      <span class="auth-status">✓ Connected</span>
+      <button @click="handleLogout" class="logout-button">Logout</button>
+    </div>
+  </Teleport>
+
   <!-- Error message -->
   <div v-if="error" class="error-banner">
     <p>{{ error }}</p>
@@ -205,6 +236,95 @@
 .app-main {
   flex: 1;
   overflow: hidden;
+}
+
+.mobile-list-toggle {
+  display: none;
+  flex-direction: column;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin-right: 1rem;
+}
+
+.mobile-list-toggle span {
+  width: 24px;
+  height: 3px;
+  background: white;
+  margin: 2px 0;
+  transition: 0.3s;
+}
+
+.mobile-list-toggle.active span:nth-child(1) {
+  transform: rotate(-45deg) translate(-5px, 6px);
+}
+
+.mobile-list-toggle.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.mobile-list-toggle.active span:nth-child(3) {
+  transform: rotate(45deg) translate(-5px, -6px);
+}
+
+.auth-button {
+  background: #f85a00;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.auth-button:hover:not(:disabled) {
+  background: #e04800;
+}
+
+.auth-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-button.large {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+
+.strava-logo {
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.auth-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.auth-status {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.logout-button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.logout-button:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .auth-prompt {
@@ -303,14 +423,6 @@
 
 /* Mobile styles */
 @media (max-width: 768px) {
-  .app-title {
-    font-size: 1.2rem;
-  }
-
-  .header-right {
-    gap: 0.5rem;
-  }
-
   .mobile-list-toggle {
     display: flex;
   }

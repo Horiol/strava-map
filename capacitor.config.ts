@@ -4,9 +4,6 @@ const config: CapacitorConfig = {
   appId: 'name.horiol.strava',
   appName: 'strava-map',
   webDir: 'dist',
-  server: {
-    androidScheme: "stravamap"
-  }
 };
 
 export default config;
