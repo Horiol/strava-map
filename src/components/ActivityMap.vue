@@ -15,9 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
 // Zoom to user's location
-const showMarkers = ref(true)
 const zoomToUserLocation = () => {
   if (!map) return
   if (!navigator.geolocation) {
@@ -52,6 +50,7 @@ import { decodePolyline } from '@/utils/polyline'
 
 // Import Leaflet CSS
 import 'leaflet/dist/leaflet.css'
+const showMarkers = ref(true)
 
 // Fix Leaflet default markers in Vite/Webpack
 delete (L.Icon.Default.prototype as any)._getIconUrl
