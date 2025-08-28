@@ -3,5 +3,6 @@ export const stravaConfig = {
   // Get them from https://www.strava.com/settings/api
   clientId: import.meta.env.VITE_STRAVA_CLIENT_ID || 'YOUR_CLIENT_ID',
   clientSecret: import.meta.env.VITE_STRAVA_CLIENT_SECRET || 'YOUR_CLIENT_SECRET',
-  redirectUri: import.meta.env.VITE_STRAVA_REDIRECT_URI || `${window.location.origin}/auth/callback`
+  redirectUri:
+    import.meta.env.VITE_STRAVA_REDIRECT_URI || `${window.location.origin}/auth/callback`,
 }

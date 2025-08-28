@@ -25,7 +25,7 @@ export function decodePolyline(encoded: string, precision = 5): [number, number]
       shift += 5
     } while (byte >= 0x20)
 
-    const deltaLat = ((result & 1) !== 0 ? ~(result >> 1) : (result >> 1))
+    const deltaLat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
     lat += deltaLat
 
     // Decode longitude
@@ -38,7 +38,7 @@ export function decodePolyline(encoded: string, precision = 5): [number, number]
       shift += 5
     } while (byte >= 0x20)
 
-    const deltaLng = ((result & 1) !== 0 ? ~(result >> 1) : (result >> 1))
+    const deltaLng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
     lng += deltaLng
 
     coordinates.push([lat / factor, lng / factor])
@@ -78,7 +78,7 @@ export function encodePolyline(coordinates: [number, number][], precision = 5): 
 }
 
 function encodeValue(value: number): string {
-  value = value < 0 ? ~(value << 1) : (value << 1)
+  value = value < 0 ? ~(value << 1) : value << 1
   let encoded = ''
 
   while (value >= 0x20) {
