@@ -120,7 +120,6 @@
 <template>
   <!-- Header controls via Teleport -->
   <Teleport to=".header-right">
-    <!-- Mobile list toggle -->
     <button
       v-if="isAuthenticated && isMobile"
       @click="toggleMobileList"
@@ -132,18 +131,7 @@
       <span></span>
     </button>
 
-    <!-- Authentication buttons -->
-    <button
-      v-if="!isAuthenticated"
-      @click="authenticateWithStrava"
-      class="auth-button"
-      :disabled="loading"
-    >
-      <span class="strava-logo">STRAVA</span>
-      Connect with Strava
-    </button>
-
-    <div v-else class="auth-controls">
+    <div v-if="isAuthenticated" class="auth-controls">
       <span class="auth-status">✓ Connected</span>
       <button @click="handleLogout" class="logout-button">Logout</button>
     </div>
@@ -160,36 +148,6 @@
     <!-- Not authenticated view -->
     <div v-if="!isAuthenticated" class="auth-prompt">
       <div class="auth-prompt-content">
-        <div class="auth-icon">🗺️</div>
-        <h2>Welcome to Strava Activity Map</h2>
-        <p>Connect your Strava account to visualize all your activities on an interactive map.</p>
-
-        <div class="auth-features">
-          <div class="feature">
-            <div class="feature-icon">📍</div>
-            <div class="feature-text">
-              <h3>Activity Routes</h3>
-              <p>See your running, cycling, and hiking routes plotted on the map</p>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">📊</div>
-            <div class="feature-text">
-              <h3>Activity Stats</h3>
-              <p>View detailed statistics for each activity</p>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">🔍</div>
-            <div class="feature-text">
-              <h3>Filter & Search</h3>
-              <p>Find specific activities by type or name</p>
-            </div>
-          </div>
-        </div>
-
         <button @click="authenticateWithStrava" class="auth-button large" :disabled="loading">
           <span class="strava-logo">STRAVA</span>
           Connect with Strava

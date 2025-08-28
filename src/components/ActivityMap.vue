@@ -4,6 +4,9 @@
     <button class="zoom-user-btn" @click="zoomToUserLocation" title="Zoom to your location">
       📍 My Location
     </button>
+    <label class="toggle-markers-label">
+      <input type="checkbox" v-model="showMarkers" /> Show activity markers
+    </label>
     <div v-if="loading" class="map-loading">
       <div class="spinner"></div>
       <p>Loading activities...</p>
@@ -12,7 +15,9 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 // Zoom to user's location
+const showMarkers = ref(true)
 const zoomToUserLocation = () => {
   if (!map) return
   if (!navigator.geolocation) {
@@ -111,6 +116,23 @@ const getActivityColor = (type: string): string | undefined => {
     return colors[type] ?? colors.default
 }
 
+const activityPopup = (activity: StravaActivity) => {
+  return `
+    <div class="activity-popup">
+      <h3>${activity.name}</h3>
+      <p><strong>Type:</strong> ${activity.type}</p>
+      <p><strong>Distance:</strong> ${(activity.distance / 1000).toFixed(2)} km</p>
+      <p><strong>Duration:</strong> ${Math.floor(activity.moving_time / 60)} min</p>
+      <p><strong>Date:</strong> ${new Date(activity.start_date).toLocaleDateString()}</p>
+      <p>
+          <a href="https://www.strava.com/activities/${activity.id}" target="_blank" rel="noopener noreferrer">
+          View on Strava
+          </a>
+        </p>
+    </div>
+  `
+}
+
 const addActivitiesToMap = () => {
   if (!map || !activityLayers) return
 
@@ -124,10 +146,9 @@ const addActivitiesToMap = () => {
 
   props.activities.forEach((activity) => {
     try {
-      // Add start marker if available
-      if (activity.start_latlng && activity.start_latlng.length === 2) {
+      // Add start marker if available and showMarkers is true
+      if (showMarkers.value && activity.start_latlng && activity.start_latlng.length === 2) {
         const [lat, lng] = activity.start_latlng
-
         const startMarker = L.marker([lat, lng], {
           icon: L.divIcon({
             className: 'activity-start-marker',
@@ -138,61 +159,28 @@ const addActivitiesToMap = () => {
             iconAnchor: [15, 15],
           }),
         })
-
-        startMarker.bindPopup(`
-          <div class="activity-popup">
-            <h3>${activity.name}</h3>
-            <p><strong>Type:</strong> ${activity.type}</p>
-            <p><strong>Distance:</strong> ${(activity.distance / 1000).toFixed(2)} km</p>
-            <p><strong>Duration:</strong> ${Math.floor(activity.moving_time / 60)} min</p>
-            <p><strong>Date:</strong> ${new Date(activity.start_date).toLocaleDateString()}</p>
-            <p>
-                <a href="https://www.strava.com/activities/${activity.id}" target="_blank" rel="noopener noreferrer">
-                View on Strava
-                </a>
-              </p>
-          </div>
-        `)
-
+        startMarker.bindPopup(activityPopup(activity))
         startMarker.on('click', () => {
           emit('activitySelected', activity)
         })
-
         activityLayers?.addLayer(startMarker)
         bounds.extend([lat, lng])
         hasValidCoordinates = true
       }
-
       // Add route polyline if available
       if (activity.map && activity.map.summary_polyline) {
         try {
           const coordinates = decodePolyline(activity.map.summary_polyline)
-
           if (coordinates.length > 0) {
             const polyline = L.polyline(coordinates, {
               color: getActivityColor(activity.type),
               weight: 3,
               opacity: 0.7,
             })
-
-            polyline.bindPopup(`
-                <div class="activity-popup">
-                <h3>${activity.name}</h3>
-                <p><strong>Type:</strong> ${activity.type}</p>
-                <p><strong>Distance:</strong> ${(activity.distance / 1000).toFixed(2)} km</p>
-                <p><strong>Avg Speed:</strong> ${(activity.average_speed * 3.6).toFixed(1)} km/h</p>
-                <p>
-                  <a href="https://www.strava.com/activities/${activity.id}" target="_blank" rel="noopener noreferrer">
-                  View on Strava
-                  </a>
-                </p>
-                </div>
-            `)
-
+            polyline.bindPopup(activityPopup(activity))
             polyline.on('click', () => {
               emit('activitySelected', activity)
             })
-
             activityLayers?.addLayer(polyline)
             coordinates.forEach((coord) => bounds.extend(coord))
             hasValidCoordinates = true
@@ -268,6 +256,11 @@ watch(
   { deep: true },
 )
 
+// Watch for marker toggle
+watch(showMarkers, () => {
+  addActivitiesToMap()
+})
+
 // Watch for selected activity changes
 watch(
   () => props.selectedActivity,
@@ -292,6 +285,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Toggle markers checkbox */
+.toggle-markers-label {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  z-index: 1001;
+  background: #fff;
+  border: 1px solid #fc4c02;
+  color: #fc4c02;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.toggle-markers-label input[type="checkbox"] {
+  accent-color: #fc4c02;
+  margin-right: 6px;
+}
 /* Zoom to user button */
 .zoom-user-btn {
   position: absolute;

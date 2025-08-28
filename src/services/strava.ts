@@ -196,6 +196,7 @@ export class StravaService {
   }
 
   public logout(): void {
+    localStorage.removeItem('strava_activities_cache')
     this.clearTokenFromStorage()
   }
 
