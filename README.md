@@ -7,7 +7,7 @@ A Progressive Web App (PWA) built with Vue.js that displays your Strava activiti
 - 🗺️ **Interactive Map**: View all your activities plotted on an interactive Leaflet map
 - 📱 **PWA Support**: Install on mobile devices and use offline
 - 🏃 **Activity Visualization**: See your running, cycling, hiking routes as colored polylines
-- 📊 **Detailed Stats**: View distance, duration, speed, and elevation data for each activity  
+- 📊 **Detailed Stats**: View distance, duration, speed, and elevation data for each activity
 - 🔍 **Search & Filter**: Find specific activities by type or name
 - 📱 **Responsive Design**: Optimized for both desktop and mobile devices
 
@@ -37,6 +37,7 @@ npm install
 ### 3. Configure Environment Variables
 
 1. Copy the example environment file:
+
    ```bash
    cp .env.example .env
    ```
@@ -44,13 +45,14 @@ npm install
 2. Edit `.env` and add your Strava credentials:
    ```
    VITE_STRAVA_CLIENT_ID=your_client_id_here
-   VITE_STRAVA_CLIENT_SECRET=your_client_secret_here  
+   VITE_STRAVA_CLIENT_SECRET=your_client_secret_here
    VITE_STRAVA_REDIRECT_URI=http://localhost:5173/auth/callback
    ```
 
 ### 4. Update Strava App Settings
 
 In your Strava API application settings, make sure the Authorization Callback Domain includes:
+
 - For local development: `localhost`
 - For production: your domain (e.g., `yourdomain.com`)
 
@@ -73,6 +75,7 @@ The built files will be in the `dist` folder, ready to deploy to any static host
 ## PWA Features
 
 This app includes:
+
 - Service Worker for offline functionality
 - Web App Manifest for installation
 - Responsive design for all screen sizes
@@ -90,6 +93,7 @@ This app includes:
 ## API Usage
 
 The app uses the Strava API v3 to fetch:
+
 - Athlete activities list
 - Activity details and GPS tracks
 - Activity statistics

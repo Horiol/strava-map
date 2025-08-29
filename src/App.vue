@@ -6,8 +6,7 @@
       <div class="header-content">
         <div class="header-left">
           <h1 class="app-title">
-            <span class="strava-icon">🏃</span>
-            Strava Activity Map
+              Activity Map
           </h1>
         </div>
         <div class="header-right">
@@ -15,7 +14,7 @@
         </div>
       </div>
     </header>
-    <RouterView />
+    <RouterView/>
   </div>
 </template>
 

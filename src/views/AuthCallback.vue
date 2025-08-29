@@ -20,12 +20,13 @@
 
     if (code) {
       await stravaService.exchangeCodeForToken(code)
-      if (Capacitor.isNativePlatform()) {
-        router.push('/');
-      } else {
-        console.log('Authorization code received in browser');
-        tryOpenNativeApp(code);
-      }
+      router.push('/');
+      // if (Capacitor.isNativePlatform()) {
+      //   router.push('/');
+      // } else {
+      //   console.log('Authorization code received in browser');
+      //   tryOpenNativeApp(code);
+      // }
     } else {
       console.error('No authorization code found in URL');
       setTimeout(() => {
