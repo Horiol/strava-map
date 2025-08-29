@@ -45,7 +45,7 @@ export class StravaService {
   private accessToken: string | null = null
   private activitiesCacheKey = 'strava_activities_cache'
   private activitiesCacheTimeKey = 'strava_activities_cache_time'
-  private cacheTTL = 60 * 60 * 24
+  private cacheTTL = 60 * 60
 
   constructor(config: StravaConfig) {
     this.config = config
@@ -95,7 +95,8 @@ export class StravaService {
   }
 
   private loadTokenFromStorage(): void {
-    this.accessToken = localStorage.getItem('strava_access_token')
+    // this.accessToken = localStorage.getItem('strava_access_token')
+    this.accessToken = 'a0800a0ca83b387c5a1dbdcd3ad879ee024948bb'
   }
 
   private saveTokenToStorage(token: string): void {
@@ -143,7 +144,8 @@ export class StravaService {
   }
 
   public async refreshToken(): Promise<void> {
-    const refreshToken = localStorage.getItem('strava_refresh_token')
+    // const refreshToken = localStorage.getItem('strava_refresh_token')
+    const refreshToken = '3be791166a05881bd7e927838a31ce34df76148a'
 
     if (!refreshToken) {
       throw new Error('No refresh token available')
@@ -170,7 +172,8 @@ export class StravaService {
   }
 
   public async checkTokenValidity(): Promise<boolean> {
-    const expiresAt = localStorage.getItem('strava_expires_at')
+    // const expiresAt = localStorage.getItem('strava_expires_at')
+    const expiresAt = 1756513146
 
     if (!expiresAt || !this.accessToken) {
       return false

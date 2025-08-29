@@ -1,3 +1,67 @@
+<template>
+  <Teleport to=".header-right">
+    <button
+      v-if="isAuthenticated && isMobile"
+      @click="toggleMobileList"
+      class="mobile-list-toggle"
+      :class="{ active: showMobileList }"
+    >
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <div v-if="isAuthenticated" class="auth-controls">
+      <button @click="handleLogout" class="logout-button">Logout</button>
+    </div>
+  </Teleport>
+
+  <div v-if="error" class="error-banner">
+    <p>{{ error }}</p>
+    <button @click="error = null" class="error-close">×</button>
+  </div>
+
+  <main class="app-main">
+    <div v-if="!isAuthenticated" class="auth-prompt">
+      <div class="auth-prompt-content">
+        <button @click="authenticateWithStrava" class="auth-button large" :disabled="loading">
+          Connect with Strava
+        </button>
+      </div>
+    </div>
+
+    <div v-else class="app-content">
+      <div class="desktop-layout">
+        <aside class="activity-sidebar" :class="{ 'mobile-open': showMobileList }">
+          <ActivityList
+            :activities="activities"
+            :selected-activity="selectedActivity"
+            :loading="loading"
+            :activityMarkers="showMarkers"
+            @activity-selected="handleActivitySelected"
+          />
+        </aside>
+
+        <div class="map-area">
+          <ActivityMap
+            :activities="activities"
+            :loading="loading"
+            :selected-activity="selectedActivity"
+            :showMarkers="showMarkers"
+            @activity-selected="handleActivitySelected"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="showMobileList && isMobile"
+        class="mobile-overlay"
+        @click="showMobileList = false"
+      ></div>
+    </div>
+  </main>
+</template>
+
 <script setup lang="ts">
   import { ref, onMounted, computed } from 'vue'
   import ActivityMap from '@/components/ActivityMap.vue'
@@ -8,6 +72,7 @@
   // App state
   const activities = ref<StravaActivity[]>([])
   const selectedActivity = ref<number | null>(null)
+  const showMarkers = ref<boolean>(false)
   const loading = ref(false)
   const isAuthenticated = ref(false)
   const showMobileList = ref(false)
@@ -117,78 +182,7 @@
   })
 </script>
 
-<template>
-  <!-- Header controls via Teleport -->
-  <Teleport to=".header-right">
-    <button
-      v-if="isAuthenticated && isMobile"
-      @click="toggleMobileList"
-      class="mobile-list-toggle"
-      :class="{ active: showMobileList }"
-    >
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
 
-    <div v-if="isAuthenticated" class="auth-controls">
-      <span class="auth-status">✓ Connected</span>
-      <button @click="handleLogout" class="logout-button">Logout</button>
-    </div>
-  </Teleport>
-
-  <!-- Error message -->
-  <div v-if="error" class="error-banner">
-    <p>{{ error }}</p>
-    <button @click="error = null" class="error-close">×</button>
-  </div>
-
-  <!-- Main content -->
-  <main class="app-main">
-    <!-- Not authenticated view -->
-    <div v-if="!isAuthenticated" class="auth-prompt">
-      <div class="auth-prompt-content">
-        <button @click="authenticateWithStrava" class="auth-button large" :disabled="loading">
-          <span class="strava-logo">STRAVA</span>
-          Connect with Strava
-        </button>
-      </div>
-    </div>
-
-    <!-- Authenticated view -->
-    <div v-else class="app-content">
-      <!-- Desktop layout -->
-      <div class="desktop-layout">
-        <!-- Activity list sidebar -->
-        <aside class="activity-sidebar" :class="{ 'mobile-open': showMobileList }">
-          <ActivityList
-            :activities="activities"
-            :selected-activity="selectedActivity"
-            :loading="loading"
-            @activity-selected="handleActivitySelected"
-          />
-        </aside>
-
-        <!-- Map area -->
-        <div class="map-area">
-          <ActivityMap
-            :activities="activities"
-            :loading="loading"
-            :selected-activity="selectedActivity"
-            @activity-selected="handleActivitySelected"
-          />
-        </div>
-      </div>
-
-      <!-- Mobile overlay -->
-      <div
-        v-if="showMobileList && isMobile"
-        class="mobile-overlay"
-        @click="showMobileList = false"
-      ></div>
-    </div>
-  </main>
-</template>
 
 <style scoped>
 .app-main {

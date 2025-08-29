@@ -6,10 +6,7 @@
       <div class="header-content">
         <div class="header-left">
           <h1 class="app-title">
-            <span class="strava-icon">🏃</span>
-            <span v-if="(!isAuthenticated && isMobile) || (!isMobile)">
-              Strava Activity Map
-            </span>
+              Activity Map
           </h1>
         </div>
         <div class="header-right">
@@ -17,32 +14,9 @@
         </div>
       </div>
     </header>
-    <RouterView />
+    <RouterView/>
   </div>
 </template>
-
-<script setup lang="ts">
-  import { ref, onMounted, computed } from 'vue'
-  import { StravaService } from '@/services/strava'
-  import { stravaConfig } from '@/config/strava'
-  const isAuthenticated = ref(false)
-
-  // Initialize Strava service
-  const stravaService = new StravaService(stravaConfig)
-
-  // Check authentication status
-  const checkAuthStatus = () => {
-    isAuthenticated.value = stravaService.isAuthenticated()
-  }
-
-  const isMobile = computed(() => {
-    return window.innerWidth <= 768
-  })
-
-  onMounted(async () => {
-    checkAuthStatus()
-  })
-</script>
 
 <style>
 .app {

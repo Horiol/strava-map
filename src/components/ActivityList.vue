@@ -2,6 +2,12 @@
   <div class="activity-list">
     <div class="activity-list-header">
       <h2>Activities</h2>
+      <label class="toggle-markers-label">
+        <input
+          type="checkbox"
+          v-model="mapStore.showMarkers"
+        /> Show activity markers
+      </label>
       <div class="activity-stats">
         <span class="activity-count">{{ activities.length }} activities</span>
         <span v-if="totalDistance > 0" class="total-distance">
@@ -113,6 +119,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { StravaActivity } from '@/services/strava'
+import { useMapStore } from '@/stores/map'
+
+const mapStore = useMapStore()
 
 interface Props {
   activities: StravaActivity[]
@@ -126,7 +135,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  activitySelected: [activity: StravaActivity]
+  activitySelected: [activity: StravaActivity],
 }>()
 
 const selectedType = ref('')
