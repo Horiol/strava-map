@@ -53,7 +53,7 @@ npm install
 
 In your Strava API application settings, make sure the Authorization Callback Domain includes:
 
-- For local development: `localhost`
+- For local development: `localhost` (It always works for localhost, so you can use it without any issues for local development)
 - For production: your domain (e.g., `yourdomain.com`)
 
 ### 5. Run the Development Server
