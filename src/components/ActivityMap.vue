@@ -15,6 +15,7 @@
   import type { StravaActivity } from '@/services/strava'
   import { decodePolyline } from '@/utils/polyline'
   import { useMapStore } from '@/stores/map'
+  import { formatDate } from '@/utils/date'
 
   const mapStore = useMapStore()
 
@@ -91,7 +92,7 @@
         <p><strong>Type:</strong> ${activity.type}</p>
         <p><strong>Distance:</strong> ${(activity.distance / 1000).toFixed(2)} km</p>
         <p><strong>Duration:</strong> ${Math.floor(activity.moving_time / 60)} min</p>
-        <p><strong>Date:</strong> ${new Date(activity.start_date).toLocaleDateString()}</p>
+        <p><strong>Date:</strong> ${formatDate(activity.start_date)}</p>
         <p>
             <a href="https://www.strava.com/activities/${activity.id}" target="_blank" rel="noopener noreferrer">
             View on Strava

@@ -120,6 +120,7 @@
 import { computed, ref } from 'vue'
 import type { StravaActivity } from '@/services/strava'
 import { useMapStore } from '@/stores/map'
+import { formatDate } from '@/utils/date'
 
 const mapStore = useMapStore()
 
@@ -180,16 +181,6 @@ const getActivityColor = (type: string): string | undefined => {
     default: '#fc4c02',
   }
     return colors[type] ?? colors.default
-}
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 const formatDuration = (seconds: number): string => {
