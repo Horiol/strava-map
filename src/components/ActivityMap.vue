@@ -73,16 +73,13 @@
   const getActivityColor = (type: string): string | undefined => {
     const colors: Record<string, string> = {
       Ride: '#fc4c02', // Strava orange
-      Run: '#e34902',
+      Run: '#a518a3',
       Walk: '#00d4aa',
       Hike: '#8b6914',
       Swim: '#0077be',
-      Workout: '#7b68ee',
-      Yoga: '#dda0dd',
-      WeightTraining: '#4b0082',
       default: '#fc4c02',
     }
-      return colors[type] ?? colors.default
+    return colors[type] ?? colors.default
   }
 
   const activityPopup = (activity: StravaActivity) => {

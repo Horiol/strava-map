@@ -32,9 +32,9 @@
       />
     </div>
 
-    <div class="activity-items" v-if="filteredActivities.length > 0">
+    <div class="activity-items" v-if="props.filteredActivities.length > 0">
       <div
-        v-for="activity in filteredActivities"
+        v-for="activity in props.filteredActivities"
         :key="activity.id"
         class="activity-item"
         :class="{ selected: selectedActivity === activity.id }"
@@ -126,8 +126,11 @@ const mapStore = useMapStore()
 
 interface Props {
   activities: StravaActivity[]
+  filteredActivities: StravaActivity[]
   selectedActivity?: number | null
   loading?: boolean
+  selectedType: string
+  searchQuery: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -137,32 +140,26 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   activitySelected: [activity: StravaActivity],
+  'update:selectedType': [value: string],
+  'update:searchQuery': [value: string],
 }>()
 
-const selectedType = ref('')
-const searchQuery = ref('')
+const selectedType = computed({
+  get: () => props.selectedType,
+  set: (value) => emit('update:selectedType', value)
+})
+
+const searchQuery = computed({
+  get: () => props.searchQuery,
+  set: (value) => emit('update:searchQuery', value)
+})
 
 const activityTypes = computed(() => {
   const types = new Set(props.activities.map((activity) => activity.type))
   return Array.from(types).sort()
 })
 
-const filteredActivities = computed(() => {
-  let filtered = props.activities
 
-  if (selectedType.value) {
-    filtered = filtered.filter((activity) => activity.type === selectedType.value)
-  }
-
-  if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase().trim()
-    filtered = filtered.filter((activity) => activity.name.toLowerCase().includes(query))
-  }
-
-  return filtered.sort(
-    (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
-  )
-})
 
 const totalDistance = computed(() => {
   return props.activities.reduce((sum, activity) => sum + activity.distance, 0)

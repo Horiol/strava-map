@@ -57,12 +57,14 @@ export class StravaService {
    */
   public async fetchAllActivitiesAndCache(): Promise<StravaActivity[]> {
     let allActivities: StravaActivity[] = []
+    let mapActivities: StravaActivity[] = []
     let page = 1
     const perPage = 200 // Strava max per page
     let fetched: StravaActivity[]
     do {
       fetched = await this.getActivities(page, perPage)
-      allActivities = allActivities.concat(fetched)
+      mapActivities = fetched.filter((activity) => activity.start_latlng)
+      allActivities = allActivities.concat(mapActivities)
       page++
     } while (fetched.length === perPage)
 

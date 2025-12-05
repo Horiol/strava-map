@@ -35,16 +35,19 @@
         <aside class="activity-sidebar" :class="{ 'mobile-open': showMobileList }">
           <ActivityList
             :activities="activities"
+            :filtered-activities="filteredActivities"
             :selected-activity="selectedActivity"
             :loading="loading"
             :activityMarkers="showMarkers"
+            v-model:selected-type="selectedType"
+            v-model:search-query="searchQuery"
             @activity-selected="handleActivitySelected"
           />
         </aside>
 
         <div class="map-area">
           <ActivityMap
-            :activities="activities"
+            :activities="filteredActivities"
             :loading="loading"
             :selected-activity="selectedActivity"
             :showMarkers="showMarkers"
@@ -77,6 +80,10 @@
   const isAuthenticated = ref(false)
   const showMobileList = ref(false)
   const error = ref<string | null>(null)
+  
+  // Filter state
+  const selectedType = ref('')
+  const searchQuery = ref('')
 
   // Initialize Strava service
   const stravaService = new StravaService(stravaConfig)
@@ -167,6 +174,24 @@
   // Computed properties
   const isMobile = computed(() => {
     return window.innerWidth <= 768
+  })
+
+  // Filter activities based on type and search query
+  const filteredActivities = computed(() => {
+    let filtered = activities.value
+
+    if (selectedType.value) {
+      filtered = filtered.filter((activity) => activity.type === selectedType.value)
+    }
+
+    if (searchQuery.value.trim()) {
+      const query = searchQuery.value.toLowerCase().trim()
+      filtered = filtered.filter((activity) => activity.name.toLowerCase().includes(query))
+    }
+
+    return filtered.sort(
+      (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+    )
   })
 
   // Initialize app
