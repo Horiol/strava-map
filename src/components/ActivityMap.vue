@@ -16,6 +16,7 @@
   import { decodePolyline } from '@/utils/polyline'
   import { useMapStore } from '@/stores/map'
   import { formatDate } from '@/utils/date'
+  import { getActivityColor, getActivityIconSvgMarkup } from '@/utils/activityStyle'
 
   const mapStore = useMapStore()
 
@@ -70,18 +71,6 @@
     activityLayers = L.layerGroup().addTo(map)
   }
 
-  const getActivityColor = (type: string): string | undefined => {
-    const colors: Record<string, string> = {
-      Ride: '#fc4c02', // Strava orange
-      Run: '#a518a3',
-      Walk: '#00d4aa',
-      Hike: '#8b6914',
-      Swim: '#0077be',
-      default: '#fc4c02',
-    }
-    return colors[type] ?? colors.default
-  }
-
   const activityPopup = (activity: StravaActivity) => {
     return `
       <div class="activity-popup">
@@ -119,10 +108,10 @@
             icon: L.divIcon({
               className: 'activity-start-marker',
               html: `<div class="marker-content" style="background-color: ${getActivityColor(activity.type)}">
-                      <span class="marker-text">${activity.type.charAt(0)}</span>
+                      <svg class="marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${getActivityIconSvgMarkup(activity.type)}</svg>
                     </div>`,
-              iconSize: [15, 15],
-              iconAnchor: [15, 15],
+              iconSize: [28, 28],
+              iconAnchor: [14, 14],
             }),
           })
           startMarker.bindPopup(activityPopup(activity))
@@ -253,57 +242,6 @@
 </script>
 
 <style scoped>
-  /* Toggle markers checkbox */
-  .toggle-markers-label {
-    position: absolute;
-    top: 30px;
-    right: 16px;
-    z-index: 199;
-    background: #fff;
-    border: 1px solid #fc4c02;
-    color: #fc4c02;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.95rem;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .toggle-markers-label input[type="checkbox"] {
-    accent-color: #fc4c02;
-    margin-right: 6px;
-  }
-  /* Zoom to user button */
-  .zoom-user-btn {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 1001;
-    background: #fff;
-    border: 1px solid #fc4c02;
-    color: #fc4c02;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 1rem;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    transition: background 0.2s;
-  }
-  .zoom-user-btn:hover {
-    background: #fc4c02;
-    color: #fff;
-  }
-
-  .user-location-marker .user-location-dot {
-    width: 14px;
-    height: 14px;
-    background: #0077be;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    box-shadow: 0 0 6px #0077be;
-  }
   .map-container {
     position: relative;
     height: 100%;
@@ -329,33 +267,28 @@
 
   .map-loading {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.9);
-    z-index: 1000;
+    background: color-mix(in srgb, var(--color-bg) 90%, transparent);
+    z-index: var(--z-loading);
+    color: var(--color-text);
   }
 
   .spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #fc4c02;
-    border-radius: 50%;
+    border: 4px solid var(--color-border);
+    border-top-color: var(--color-brand);
+    border-radius: var(--radius-full);
     animation: spin 1s linear infinite;
-    margin-bottom: 1rem;
+    margin-bottom: var(--space-4);
   }
 
   @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
+    to {
       transform: rotate(360deg);
     }
   }
@@ -366,17 +299,20 @@
   }
 
   :deep(.marker-content) {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    font-weight: bold;
-    font-size: 12px;
-    border: 2px solid white;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    color: #fff;
+    border: 2px solid #fff;
+    box-shadow: var(--shadow-md);
+  }
+
+  :deep(.marker-content .marker-icon) {
+    width: 16px;
+    height: 16px;
   }
 
   :deep(.activity-popup) {
@@ -384,13 +320,23 @@
   }
 
   :deep(.activity-popup h3) {
-    margin: 0 0 0.5rem 0;
-    color: #fc4c02;
-    font-size: 1.1rem;
+    margin: 0 0 var(--space-2) 0;
+    color: var(--color-brand);
+    font-size: var(--font-size-lg);
   }
 
   :deep(.activity-popup p) {
-    margin: 0.25rem 0;
-    font-size: 0.9rem;
+    margin: var(--space-1) 0;
+    font-size: var(--font-size-sm);
+  }
+
+  :deep(.activity-popup a) {
+    color: var(--color-brand);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  :deep(.activity-popup a:hover) {
+    text-decoration: underline;
   }
 </style>

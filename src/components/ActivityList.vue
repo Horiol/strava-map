@@ -8,7 +8,7 @@
           v-model="mapStore.showMarkers"
         /> Show activity markers
       </label>
-      <div class="activity-stats">
+      <div class="activity-summary">
         <span class="activity-count">{{ activities.length }} activities</span>
         <span v-if="totalDistance > 0" class="total-distance">
           {{ (totalDistance / 1000).toFixed(1) }} km total
@@ -44,8 +44,9 @@
           <div
             class="activity-type-badge"
             :style="{ backgroundColor: getActivityColor(activity.type) }"
+            :title="activity.type"
           >
-            {{ activity.type.charAt(0) }}
+            <ActivityIcon :type="activity.type" :size="18" color="#fff" decorative />
           </div>
           <div class="activity-info">
             <h3 class="activity-name">
@@ -117,10 +118,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { StravaActivity } from '@/services/strava'
 import { useMapStore } from '@/stores/map'
 import { formatDate } from '@/utils/date'
+import { getActivityColor } from '@/utils/activityStyle'
+import ActivityIcon from '@/components/ActivityIcon.vue'
 
 const mapStore = useMapStore()
 
@@ -159,26 +162,9 @@ const activityTypes = computed(() => {
   return Array.from(types).sort()
 })
 
-
-
 const totalDistance = computed(() => {
   return props.activities.reduce((sum, activity) => sum + activity.distance, 0)
 })
-
-const getActivityColor = (type: string): string | undefined => {
-  const colors: Record<string, string> = {
-    Ride: '#fc4c02',
-    Run: '#e34902',
-    Walk: '#00d4aa',
-    Hike: '#8b6914',
-    Swim: '#0077be',
-    Workout: '#7b68ee',
-    Yoga: '#dda0dd',
-    WeightTraining: '#4b0082',
-    default: '#fc4c02',
-  }
-    return colors[type] ?? colors.default
-}
 
 const formatDuration = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600)
@@ -196,50 +182,95 @@ const formatDuration = (seconds: number): string => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f8f9fa;
+  background: var(--color-surface);
 }
 
 .activity-list-header {
-  padding: 1rem;
-  background: white;
-  border-bottom: 1px solid #e9ecef;
+  padding: var(--space-4);
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .activity-list-header h2 {
-  margin: 0 0 0.5rem 0;
-  color: #333;
-  font-size: 1.25rem;
+  margin: 0 0 var(--space-2) 0;
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.activity-stats {
+.toggle-markers-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-markers-label input[type='checkbox'] {
+  accent-color: var(--color-brand);
+  cursor: pointer;
+}
+
+.activity-summary {
   display: flex;
-  gap: 1rem;
-  font-size: 0.875rem;
-  color: #6c757d;
+  gap: var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.activity-count,
+.total-distance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.total-distance {
+  color: var(--color-brand);
+  font-weight: 600;
 }
 
 .activity-filters {
-  padding: 1rem;
-  background: white;
-  border-bottom: 1px solid #e9ecef;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .activity-type-filter,
 .activity-search {
   flex: 1;
-  padding: 0.5rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 0.875rem;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.activity-type-filter:hover,
+.activity-search:hover {
+  border-color: var(--color-border-strong);
 }
 
 .activity-type-filter:focus,
 .activity-search:focus {
   outline: none;
-  border-color: #fc4c02;
-  box-shadow: 0 0 0 2px rgba(252, 76, 2, 0.2);
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 25%, transparent);
 }
 
 .activity-items {
@@ -249,40 +280,40 @@ const formatDuration = (seconds: number): string => {
 }
 
 .activity-item {
-  background: white;
-  border-bottom: 1px solid #e9ecef;
-  padding: 1rem;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color var(--duration-fast) var(--ease-out);
+  border-left: 4px solid transparent;
 }
 
 .activity-item:hover {
-  background-color: #f8f9fa;
+  background-color: var(--color-surface);
 }
 
 .activity-item.selected {
-  background-color: #fff3f0;
-  border-left: 4px solid #fc4c02;
+  background-color: var(--color-brand-50);
+  border-left-color: var(--color-brand);
 }
 
 .activity-header {
   display: flex;
-  align-items: flex-start;
-  margin-bottom: 0.75rem;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
 .activity-type-badge {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 14px;
-  margin-right: 0.75rem;
+  color: #fff;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
 }
 
 .activity-info {
@@ -291,44 +322,63 @@ const formatDuration = (seconds: number): string => {
 }
 
 .activity-name {
-  margin: 0 0 0.25rem 0;
-  font-size: 1rem;
+  margin: 0 0 var(--space-1) 0;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.strava-link {
+  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.strava-link:hover {
+  color: var(--color-brand);
 }
 
 .activity-date {
   margin: 0;
-  font-size: 0.875rem;
-  color: #6c757d;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
 .activity-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .stat {
   text-align: center;
+  padding: var(--space-2) 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
 }
 
 .stat-label {
   display: block;
-  font-size: 0.75rem;
-  color: #6c757d;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
   text-transform: uppercase;
-  margin-bottom: 0.25rem;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-1);
 }
 
 .stat-value {
   display: block;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 .empty-state,
@@ -337,32 +387,28 @@ const formatDuration = (seconds: number): string => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  padding: var(--space-6);
   text-align: center;
-  color: #6c757d;
+  color: var(--color-text-muted);
   flex: 1;
 }
 
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #fc4c02;
-  border-radius: 50%;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: var(--radius-full);
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
+  to {
     transform: rotate(360deg);
   }
 }
 
-/* Mobile responsiveness */
 @media (max-width: 768px) {
   .activity-filters {
     flex-direction: column;
