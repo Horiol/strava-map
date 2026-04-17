@@ -1,9 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import {
-  STRAVA_API_BASE_URL,
-  createStravaClient,
-  type RateLimitInfo,
-} from './stravaClient'
+import { createStravaClient, type RateLimitInfo } from './stravaClient'
 
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/authorize'
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token'
@@ -228,8 +224,9 @@ export class StravaService {
     }
 
     try {
+      // `baseURL` is set once on the shared axios instance in
+      // `createStravaClient`; don't duplicate it on every call.
       const response = await this.client.get<T>(path, {
-        baseURL: STRAVA_API_BASE_URL,
         params,
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
@@ -258,7 +255,10 @@ export class StravaService {
       page,
       per_page: perPage,
     }
-    if (afterTimestamp) params.after = afterTimestamp
+    // Use a nullish check so that a caller passing `0` (Unix epoch) still
+    // results in an `after` filter — otherwise `0` would silently fetch
+    // all activities.
+    if (afterTimestamp != null) params.after = afterTimestamp
     return this.makeAuthenticatedRequest<StravaActivity[]>('/athlete/activities', params)
   }
 
@@ -317,6 +317,16 @@ export class StravaService {
   /**
    * Fetch activities from Strava with bounded-concurrency paging, merge
    * them with `existing` (deduped by id) and persist the result.
+   *
+   * The paging strategy is probe-first:
+   *   1. Fetch page 1 on its own. The common case (incremental sync)
+   *      fits on a single page, so firing `SYNC_CONCURRENCY` requests
+   *      up front would waste ~2 calls every refresh.
+   *   2. If page 1 came back full, fetch the remaining pages in
+   *      parallel batches of `SYNC_CONCURRENCY`.
+   *   3. As soon as any page inside a batch comes back with
+   *      `< SYNC_PAGE_SIZE` items we stop processing the rest of the
+   *      batch and don't dispatch the next one.
    */
   public async fetchAllActivitiesAndCache(
     params: {
@@ -329,9 +339,23 @@ export class StravaService {
 
     const byId = new Map<number, StravaActivity>(existing.map((a) => [a.id, a]))
     let pagesFetched = 0
-    let page = 1
-    let done = false
 
+    const ingest = (pageItems: StravaActivity[]) => {
+      pagesFetched += 1
+      for (const activity of pageItems) {
+        if (activity.start_latlng) {
+          byId.set(activity.id, activity)
+        }
+      }
+    }
+
+    let page = 1
+    const probe = await this.getActivities(page, SYNC_PAGE_SIZE, afterTimestamp)
+    ingest(probe)
+    onProgress?.({ pagesFetched, activitiesKnown: byId.size })
+    page += 1
+
+    let done = probe.length < SYNC_PAGE_SIZE
     while (!done) {
       const pageNumbers = Array.from({ length: SYNC_CONCURRENCY }, (_, i) => page + i)
       const batch = await Promise.all(
@@ -339,14 +363,12 @@ export class StravaService {
       )
 
       for (const pageItems of batch) {
-        pagesFetched += 1
-        for (const activity of pageItems) {
-          if (activity.start_latlng) {
-            byId.set(activity.id, activity)
-          }
-        }
+        ingest(pageItems)
         if (pageItems.length < SYNC_PAGE_SIZE) {
+          // We've reached the end of the activity list. Stop the outer
+          // loop so we don't fire another batch of empty requests.
           done = true
+          break
         }
       }
 

@@ -50,13 +50,18 @@ function sleep(ms: number): Promise<void> {
 }
 
 type HeaderBag = AxiosResponse['headers'] | undefined
+type HeaderValue = string | string[] | number | boolean | null | undefined
 
 function readHeader(headers: HeaderBag, name: string): string | undefined {
   if (!headers) return undefined
-  // axios headers can be a plain object or AxiosHeaders; treat them as a
-  // case-insensitive bag either way.
-  const bag = headers as unknown as Record<string, string | undefined>
-  return bag[name] ?? bag[name.toLowerCase()] ?? bag[name.toUpperCase()]
+  // axios headers can be a plain object or an AxiosHeaders instance,
+  // and values are typed as `string | string[]`. Treat the object as a
+  // case-insensitive bag and collapse array values to their first entry.
+  const bag = headers as unknown as Record<string, HeaderValue>
+  const raw = bag[name] ?? bag[name.toLowerCase()] ?? bag[name.toUpperCase()]
+  if (raw == null) return undefined
+  if (Array.isArray(raw)) return raw[0]
+  return String(raw)
 }
 
 function parseRateLimit(headers: HeaderBag): RateLimitInfo | null {
@@ -76,12 +81,15 @@ function parseRateLimit(headers: HeaderBag): RateLimitInfo | null {
 }
 
 export function isNearRateLimit(info: RateLimitInfo): boolean {
+  // Explicitly compare against `undefined` so that a reported limit of
+  // `0` (unlikely but valid numeric configuration) isn't silently
+  // treated as "unknown". Guard against division by zero separately.
   const short =
-    info.shortUsage !== undefined && info.shortLimit
+    info.shortUsage !== undefined && info.shortLimit !== undefined && info.shortLimit > 0
       ? info.shortUsage / info.shortLimit
       : 0
   const daily =
-    info.dailyUsage !== undefined && info.dailyLimit
+    info.dailyUsage !== undefined && info.dailyLimit !== undefined && info.dailyLimit > 0
       ? info.dailyUsage / info.dailyLimit
       : 0
   return Math.max(short, daily) >= RATE_LIMIT_WARN_THRESHOLD
