@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { StravaActivity } from '@/services/strava'
+import type { CachedActivity } from '@/services/strava'
 import { useMapStore } from '@/stores/map'
 import { formatDate } from '@/utils/date'
 import { getActivityColor } from '@/utils/activityStyle'
@@ -128,8 +128,8 @@ import ActivityIcon from '@/components/ActivityIcon.vue'
 const mapStore = useMapStore()
 
 interface Props {
-  activities: StravaActivity[]
-  filteredActivities: StravaActivity[]
+  activities: CachedActivity[]
+  filteredActivities: CachedActivity[]
   selectedActivity?: number | null
   loading?: boolean
   selectedType: string
@@ -142,7 +142,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  activitySelected: [activity: StravaActivity],
+  activitySelected: [activity: CachedActivity],
   'update:selectedType': [value: string],
   'update:searchQuery': [value: string],
 }>()

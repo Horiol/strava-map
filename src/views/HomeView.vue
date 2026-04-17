@@ -138,6 +138,7 @@
           <ActivityMap
             :activities="filteredActivities"
             :loading="loading"
+            :loading-status="syncStatus"
             :selected-activity="selectedActivity"
             :showMarkers="showMarkers"
             @activity-selected="handleActivitySelected"
@@ -161,7 +162,7 @@
   import ActivityIcon from '@/components/ActivityIcon.vue'
   import {
     StravaService,
-    type StravaActivity,
+    type CachedActivity,
     type GetCachedActivitiesOptions,
   } from '@/services/strava'
   import { stravaConfig } from '@/config/strava'
@@ -187,7 +188,9 @@
   ]
 
   // App state
-  const activities = ref<StravaActivity[]>([])
+  const activities = ref<CachedActivity[]>([])
+  // Partial sync progress text shown under the spinner while streaming.
+  const syncStatus = ref<string | null>(null)
   const selectedActivity = ref<number | null>(null)
   const showMarkers = ref<boolean>(false)
   const loading = ref(false)
@@ -251,16 +254,28 @@
     try {
       loading.value = true
       error.value = null
-      activities.value = await stravaService.getCachedActivities(options)
+      syncStatus.value = null
+      activities.value = await stravaService.getCachedActivities({
+        ...options,
+        // Stream each completed page into the reactive list so the map
+        // and sidebar fill in progressively instead of waiting for the
+        // full sync to finish.
+        onProgress: (progress) => {
+          activities.value = progress.partial
+          syncStatus.value = `Loaded ${progress.activitiesKnown.toLocaleString()} activities…`
+          options.onProgress?.(progress)
+        },
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load activities'
       error.value = message
       if (message.includes('Authentication failed')) {
         isAuthenticated.value = false
-        stravaService.logout()
+        await stravaService.logout()
       }
     } finally {
       loading.value = false
+      syncStatus.value = null
     }
   }
 
@@ -269,7 +284,7 @@
   const handleRefresh = () => loadActivities({ forceIncremental: true })
 
   // Handle activity selection
-  const handleActivitySelected = (activity: StravaActivity) => {
+  const handleActivitySelected = (activity: CachedActivity) => {
     selectedActivity.value = activity.id
     if (isMobile.value) {
       showMobileList.value = false
@@ -277,12 +292,14 @@
   }
 
   // Handle logout
-  const handleLogout = () => {
-    stravaService.logout()
+  const handleLogout = async () => {
+    // Clear UI state eagerly so the user sees immediate feedback; the
+    // IDB cache clear runs in the background.
     isAuthenticated.value = false
     activities.value = []
     selectedActivity.value = null
     error.value = null
+    await stravaService.logout()
   }
 
   // Toggle mobile list

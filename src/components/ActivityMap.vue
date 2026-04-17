@@ -3,7 +3,7 @@
     <div id="activity-map" ref="mapContainer" class="activity-map"></div>
     <div v-if="loading" class="map-loading">
       <div class="spinner"></div>
-      <p>Loading activities...</p>
+      <p>{{ loadingStatus || 'Loading activities…' }}</p>
     </div>
   </div>
 </template>
@@ -12,19 +12,18 @@
   import { ref, onMounted, onUnmounted, watch } from 'vue'
   import type { Ref } from 'vue'
   import L from 'leaflet'
-  import type { StravaActivity } from '@/services/strava'
-  import { decodePolyline } from '@/utils/polyline'
+  import type { CachedActivity } from '@/services/strava'
   import { useMapStore } from '@/stores/map'
   import { formatDate } from '@/utils/date'
   import { getActivityColor, getActivityIconSvgMarkup } from '@/utils/activityStyle'
 
   const mapStore = useMapStore()
 
-  // Import Leaflet CSS
   import 'leaflet/dist/leaflet.css'
 
-  // Fix Leaflet default markers in Vite/Webpack
-  delete (L.Icon.Default.prototype as any)._getIconUrl
+  // Fix Leaflet's default marker URLs under Vite. `_getIconUrl` is an
+  // internal Leaflet prop that has no public typing, hence the cast.
+  delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
     iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -32,46 +31,61 @@
   })
 
   interface Props {
-    activities: StravaActivity[]
+    activities: CachedActivity[]
     loading?: boolean
+    loadingStatus?: string | null
     selectedActivity?: number | null
   }
 
   const props = withDefaults(defineProps<Props>(), {
     loading: false,
+    loadingStatus: null,
     selectedActivity: null,
   })
 
   const emit = defineEmits<{
-    activitySelected: [activity: StravaActivity]
+    activitySelected: [activity: CachedActivity]
   }>()
 
   const mapContainer: Ref<HTMLElement | null> = ref(null)
   let map: L.Map | null = null
   let activityLayers: L.LayerGroup | null = null
+  // Dedicated canvas renderer reused by every polyline we add to the
+  // map. A single canvas is dramatically cheaper than N SVG layers when
+  // rendering thousands of routes.
+  let canvasRenderer: L.Canvas | null = null
+  // Track which polylines belong to which activity id so highlighting
+  // can find them in O(1) instead of walking every layer.
+  const polylinesByActivityId = new Map<number, L.Polyline>()
+  // Whether we've already fit the map to the initial activity set. We
+  // only auto-fit once per sync so streaming updates don't keep
+  // yanking the viewport around.
+  let hasFitInitialBounds = false
 
   const initializeMap = () => {
     if (!mapContainer.value) return
 
+    canvasRenderer = L.canvas({ padding: 0.5 })
+
     map = L.map(mapContainer.value, {
-      center: [40.7128, -74.006], // Default to NYC
+      center: [40.7128, -74.006],
       zoom: 10,
       zoomControl: true,
       minZoom: 3,
       maxBounds: L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180)),
+      preferCanvas: true,
+      renderer: canvasRenderer,
     })
 
-    // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map)
 
-    // Initialize activity layers group
     activityLayers = L.layerGroup().addTo(map)
   }
 
-  const activityPopup = (activity: StravaActivity) => {
+  const activityPopup = (activity: CachedActivity) => {
     return `
       <div class="activity-popup">
         <h3>${activity.name}</h3>
@@ -91,17 +105,19 @@
   const addActivitiesToMap = (moveBounds = true) => {
     if (!map || !activityLayers) return
 
-    // Clear existing activities
     activityLayers.clearLayers()
+    polylinesByActivityId.clear()
 
-    if (props.activities.length === 0) return
+    if (props.activities.length === 0) {
+      hasFitInitialBounds = false
+      return
+    }
 
     const bounds = L.latLngBounds([])
     let hasValidCoordinates = false
 
     props.activities.forEach((activity) => {
       try {
-        // Add start marker if available and showMarkers is true
         if (mapStore.showMarkers && activity.start_latlng && activity.start_latlng.length === 2) {
           const [lat, lng] = activity.start_latlng
           const startMarker = L.marker([lat, lng], {
@@ -122,96 +138,92 @@
           bounds.extend([lat, lng])
           hasValidCoordinates = true
         }
-        // Add route polyline if available
-        if (activity.map && activity.map.summary_polyline) {
-          try {
-            const coordinates = decodePolyline(activity.map.summary_polyline)
-            if (coordinates.length > 0) {
-              const polyline = L.polyline(coordinates, {
-                color: getActivityColor(activity.type),
-                weight: 3,
-                opacity: 0.7,
-              })
-              polyline.bindPopup(activityPopup(activity))
-              polyline.on('click', () => {
-                emit('activitySelected', activity)
-              })
-              activityLayers?.addLayer(polyline)
-              coordinates.forEach((coord) => bounds.extend(coord))
-              hasValidCoordinates = true
-            }
-          } catch (error) {
-            console.warn('Error decoding polyline for activity:', activity.id, error)
-          }
+        // Use the pre-decoded polyline stored alongside the activity.
+        // `coords` is populated once by the sync pipeline so we avoid
+        // re-decoding the polyline on every redraw.
+        const coordinates = activity.coords
+        if (coordinates && coordinates.length > 0) {
+          const polyline = L.polyline(coordinates, {
+            color: getActivityColor(activity.type),
+            weight: 3,
+            opacity: 0.7,
+            renderer: canvasRenderer ?? undefined,
+            // Simplify at low zooms to cut canvas work further.
+            smoothFactor: 2,
+          })
+          polyline.bindPopup(activityPopup(activity))
+          polyline.on('click', () => {
+            emit('activitySelected', activity)
+          })
+          activityLayers?.addLayer(polyline)
+          polylinesByActivityId.set(activity.id, polyline)
+          coordinates.forEach((coord) => bounds.extend(coord))
+          hasValidCoordinates = true
         }
       } catch (error) {
         console.error('Error processing activity:', activity.id, error)
       }
     })
 
-    // Fit map to show all activities
-    if (hasValidCoordinates && bounds.isValid() && moveBounds) {
+    // Only auto-fit the first time we paint a non-empty list so that
+    // streaming updates (new pages arriving) don't keep snapping the
+    // viewport around while the user is interacting with the map.
+    if (hasValidCoordinates && bounds.isValid() && moveBounds && !hasFitInitialBounds) {
       map.fitBounds(bounds, { padding: [20, 20] })
+      hasFitInitialBounds = true
     }
   }
 
   const highlightActivity = (activityId: number | null) => {
-    if (!map || !activityLayers) return
+    if (!map) return
 
-    // Reset all activity styles
-    activityLayers.eachLayer((layer: any) => {
-      if (layer instanceof L.Polyline) {
-        layer.setStyle({
-          weight: 3,
-          opacity: 0.7,
-        })
-      }
-    })
+    for (const line of polylinesByActivityId.values()) {
+      line.setStyle({ weight: 3, opacity: 0.7 })
+    }
 
-    // Highlight and zoom to selected activity
-    if (activityId) {
-      const activity = props.activities.find((a) => a.id === activityId)
-      if (activity) {
-        // Highlight polyline if available
-        if (activity.map?.summary_polyline) {
-          activityLayers.eachLayer((layer: any) => {
-            if (layer instanceof L.Polyline) {
-              layer.setStyle({
-                weight: 5,
-                opacity: 1,
-              })
-            }
-          })
-          // Zoom to polyline bounds
-          try {
-            const coordinates = decodePolyline(activity.map.summary_polyline)
-            if (coordinates.length > 0) {
-              const bounds = L.latLngBounds(coordinates)
-              map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 })
-              return
-            }
-          } catch {}
-        }
-        // Fallback: zoom to start/end latlng
-        if (activity.start_latlng && activity.start_latlng.length === 2) {
-          map.setView(activity.start_latlng as [number, number], 15, { animate: true })
-        } else if (activity.end_latlng && activity.end_latlng.length === 2) {
-          map.setView(activity.end_latlng as [number, number], 15, { animate: true })
-        }
+    if (activityId == null) return
+    const activity = props.activities.find((a) => a.id === activityId)
+    if (!activity) return
+
+    const highlighted = polylinesByActivityId.get(activityId)
+    if (highlighted) {
+      highlighted.setStyle({ weight: 5, opacity: 1 })
+      highlighted.bringToFront()
+      const b = highlighted.getBounds()
+      if (b.isValid()) {
+        map.fitBounds(b, { padding: [30, 30], maxZoom: 16 })
+        return
       }
+    }
+
+    // Fallback: zoom to start/end latlng when there's no polyline.
+    if (activity.start_latlng && activity.start_latlng.length === 2) {
+      map.setView(activity.start_latlng as [number, number], 15, { animate: true })
+    } else if (activity.end_latlng && activity.end_latlng.length === 2) {
+      map.setView(activity.end_latlng as [number, number], 15, { animate: true })
     }
   }
 
-  // Watch for activities changes
+  // Rebuild the map when the activity list is replaced. We watch on
+  // reference + length (shallow) rather than deep — the sync pipeline
+  // always assigns a fresh array, so mutation-watching isn't needed
+  // and deep watching over thousands of activities is expensive.
   watch(
-    () => props.activities,
+    [() => props.activities, () => props.activities.length],
     () => {
       addActivitiesToMap()
     },
-    { deep: true },
   )
 
-  // Watch for selected activity changes
+  // Reset the "auto-fit once" flag whenever the list becomes empty
+  // (e.g. on logout) so the next sync re-fits the viewport.
+  watch(
+    () => props.activities.length,
+    (len) => {
+      if (len === 0) hasFitInitialBounds = false
+    },
+  )
+
   watch(
     () => props.selectedActivity,
     (newActivityId) => {
@@ -238,6 +250,9 @@
       map.remove()
       map = null
     }
+    activityLayers = null
+    canvasRenderer = null
+    polylinesByActivityId.clear()
   })
 </script>
 

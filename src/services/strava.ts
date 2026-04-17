@@ -1,5 +1,14 @@
 import axios, { type AxiosInstance } from 'axios'
 import { createStravaClient, type RateLimitInfo } from './stravaClient'
+import {
+  clearCachedActivities,
+  enrichActivity,
+  getCacheTime,
+  loadCachedActivities,
+  migrateLegacyCacheIfNeeded,
+  saveCachedActivities,
+  type CachedActivity,
+} from './activityCache'
 
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/authorize'
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token'
@@ -50,6 +59,12 @@ export interface SyncProgress {
   pagesFetched: number
   /** Total activities currently known (including cached). */
   activitiesKnown: number
+  /**
+   * Cumulative activity list after merging the most recent batch. The
+   * UI can assign this directly to its reactive list so the map/list
+   * fill in progressively instead of waiting for the full sync.
+   */
+  partial: CachedActivity[]
 }
 
 export interface GetCachedActivitiesOptions {
@@ -66,8 +81,6 @@ export interface GetCachedActivitiesOptions {
 export class StravaService {
   private config: StravaConfig
   private accessToken: string | null = null
-  private activitiesCacheKey = 'strava_activities_cache'
-  private activitiesCacheTimeKey = 'strava_activities_cache_time'
   private cacheTTL = 60 * 60 // 1 hour
 
   private client: AxiosInstance
@@ -82,6 +95,9 @@ export class StravaService {
     this.client = createStravaClient({
       onRateLimit: (info) => this.onRateLimit?.(info),
     })
+    // Fire-and-forget: if there's a legacy localStorage cache from a
+    // previous build, move it into IDB on startup.
+    migrateLegacyCacheIfNeeded()
   }
 
   // ---------------------------------------------------------------
@@ -201,8 +217,8 @@ export class StravaService {
     return !!this.accessToken
   }
 
-  public logout(): void {
-    this.clearCache()
+  public async logout(): Promise<void> {
+    await this.clearCache()
     this.clearTokenFromStorage()
   }
 
@@ -287,18 +303,22 @@ export class StravaService {
    */
   public async getCachedActivities(
     optionsOrForce: boolean | GetCachedActivitiesOptions = false,
-  ): Promise<StravaActivity[]> {
+  ): Promise<CachedActivity[]> {
     const options: GetCachedActivitiesOptions =
       typeof optionsOrForce === 'boolean' ? { forceRefresh: optionsOrForce } : optionsOrForce
 
     const { forceRefresh = false, forceIncremental = false, onProgress } = options
 
-    const cached = this.loadCachedActivities()
-    const cacheTimeStr = localStorage.getItem(this.activitiesCacheTimeKey)
+    // Make sure any leftover localStorage cache is migrated before we
+    // read so a freshly upgraded client doesn't think it has no data.
+    await migrateLegacyCacheIfNeeded()
+
+    const cached = await loadCachedActivities()
+    const cacheTime = await getCacheTime()
     const now = Math.floor(Date.now() / 1000)
 
-    if (!forceRefresh && !forceIncremental && cacheTimeStr && cached.length > 0) {
-      const cacheAge = now - parseInt(cacheTimeStr, 10)
+    if (!forceRefresh && !forceIncremental && cacheTime !== null && cached.length > 0) {
+      const cacheAge = now - cacheTime
       if (Number.isFinite(cacheAge) && cacheAge < this.cacheTTL) {
         return cached
       }
@@ -327,32 +347,46 @@ export class StravaService {
    *   3. As soon as any page inside a batch comes back with
    *      `< SYNC_PAGE_SIZE` items we stop processing the rest of the
    *      batch and don't dispatch the next one.
+   *
+   * Progress is streamed via `onProgress` after every completed batch —
+   * the UI can use `progress.partial` to fill in the map/list as new
+   * pages arrive instead of waiting for the full sync.
    */
   public async fetchAllActivitiesAndCache(
     params: {
       afterTimestamp?: number
-      existing?: StravaActivity[]
+      existing?: CachedActivity[]
       onProgress?: (progress: SyncProgress) => void
     } = {},
-  ): Promise<StravaActivity[]> {
+  ): Promise<CachedActivity[]> {
     const { afterTimestamp, existing = [], onProgress } = params
 
-    const byId = new Map<number, StravaActivity>(existing.map((a) => [a.id, a]))
+    const byId = new Map<number, CachedActivity>(existing.map((a) => [a.id, a]))
     let pagesFetched = 0
 
     const ingest = (pageItems: StravaActivity[]) => {
       pagesFetched += 1
       for (const activity of pageItems) {
-        if (activity.start_latlng) {
-          byId.set(activity.id, activity)
-        }
+        if (!activity.start_latlng) continue
+        // Decode the polyline now and cache alongside the activity so
+        // re-renders don't have to decode every activity on every draw.
+        byId.set(activity.id, enrichActivity(activity))
       }
     }
+
+    const snapshotPartial = (): CachedActivity[] =>
+      Array.from(byId.values()).sort(
+        (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+      )
 
     let page = 1
     const probe = await this.getActivities(page, SYNC_PAGE_SIZE, afterTimestamp)
     ingest(probe)
-    onProgress?.({ pagesFetched, activitiesKnown: byId.size })
+    onProgress?.({
+      pagesFetched,
+      activitiesKnown: byId.size,
+      partial: snapshotPartial(),
+    })
     page += 1
 
     let done = probe.length < SYNC_PAGE_SIZE
@@ -372,49 +406,24 @@ export class StravaService {
         }
       }
 
-      onProgress?.({ pagesFetched, activitiesKnown: byId.size })
+      onProgress?.({
+        pagesFetched,
+        activitiesKnown: byId.size,
+        partial: snapshotPartial(),
+      })
       page += SYNC_CONCURRENCY
     }
 
-    const merged = Array.from(byId.values()).sort(
-      (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
-    )
-
-    this.writeCache(merged)
+    const merged = snapshotPartial()
+    await saveCachedActivities(merged)
     return merged
   }
 
-  private loadCachedActivities(): StravaActivity[] {
-    try {
-      const raw = localStorage.getItem(this.activitiesCacheKey)
-      if (!raw) return []
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? (parsed as StravaActivity[]) : []
-    } catch {
-      return []
-    }
+  private async clearCache(): Promise<void> {
+    await clearCachedActivities()
   }
 
-  private writeCache(activities: StravaActivity[]): void {
-    try {
-      localStorage.setItem(this.activitiesCacheKey, JSON.stringify(activities))
-      localStorage.setItem(
-        this.activitiesCacheTimeKey,
-        Math.floor(Date.now() / 1000).toString(),
-      )
-    } catch (error) {
-      // Most likely a QuotaExceededError on localStorage. Don't crash
-      // the sync — warn and continue; subsequent syncs will retry.
-      console.warn('[Strava] Failed to write activities cache', error)
-    }
-  }
-
-  private clearCache(): void {
-    localStorage.removeItem(this.activitiesCacheKey)
-    localStorage.removeItem(this.activitiesCacheTimeKey)
-  }
-
-  private newestStartDate(activities: StravaActivity[]): number | undefined {
+  private newestStartDate(activities: CachedActivity[]): number | undefined {
     let newest = 0
     for (const activity of activities) {
       const t = new Date(activity.start_date).getTime()
@@ -427,3 +436,7 @@ export class StravaService {
     return Math.floor(newest / 1000) + 1
   }
 }
+
+// Re-export the cached-activity type at the service barrel so callers
+// don't have to depend on the cache implementation directly.
+export type { CachedActivity } from './activityCache'

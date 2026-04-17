@@ -5,6 +5,7 @@
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
     "axios": "^1.11.0",
+    "idb-keyval": "^6.2.2",
     "leaflet": "^1.9.4",
     "pinia": "^3.0.3",
     "vite-plugin-pwa": "^1.0.3",
