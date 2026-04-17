@@ -1,8 +1,17 @@
-import axios from 'axios'
+import axios, { type AxiosInstance } from 'axios'
+import {
+  STRAVA_API_BASE_URL,
+  createStravaClient,
+  type RateLimitInfo,
+} from './stravaClient'
 
-const STRAVA_BASE_URL = 'https://www.strava.com/api/v3'
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/authorize'
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token'
+
+/** Number of pages requested in parallel during a bulk sync. */
+const SYNC_CONCURRENCY = 3
+/** Strava hard cap for this endpoint — keep at 200 to minimise roundtrips. */
+const SYNC_PAGE_SIZE = 200
 
 export interface StravaActivity {
   id: number
@@ -40,61 +49,48 @@ export interface StravaConfig {
   redirectUri: string
 }
 
+export interface SyncProgress {
+  /** Pages fetched so far (successful requests). */
+  pagesFetched: number
+  /** Total activities currently known (including cached). */
+  activitiesKnown: number
+}
+
+export interface GetCachedActivitiesOptions {
+  /** Ignore cache and re-download the entire activity history. */
+  forceRefresh?: boolean
+  /**
+   * Bypass the cache TTL: if we have cached data, still fetch only the
+   * activities newer than the newest cached one (incremental sync).
+   */
+  forceIncremental?: boolean
+  onProgress?: (progress: SyncProgress) => void
+}
+
 export class StravaService {
   private config: StravaConfig
   private accessToken: string | null = null
   private activitiesCacheKey = 'strava_activities_cache'
   private activitiesCacheTimeKey = 'strava_activities_cache_time'
-  private cacheTTL = 60 * 60
+  private cacheTTL = 60 * 60 // 1 hour
+
+  private client: AxiosInstance
+  private refreshPromise: Promise<void> | null = null
+
+  /** Optional subscriber for rate-limit info. UI can use this to warn users. */
+  public onRateLimit: ((info: RateLimitInfo) => void) | null = null
 
   constructor(config: StravaConfig) {
     this.config = config
     this.loadTokenFromStorage()
-    // Optionally, load cache here if needed
-  }
-  /**
-   * Fetch all activities from Strava using pagination, and cache them.
-   */
-  public async fetchAllActivitiesAndCache(): Promise<StravaActivity[]> {
-    let allActivities: StravaActivity[] = []
-    let mapActivities: StravaActivity[] = []
-    let page = 1
-    const perPage = 200 // Strava max per page
-    let fetched: StravaActivity[]
-    do {
-      fetched = await this.getActivities(page, perPage)
-      mapActivities = fetched.filter((activity) => activity.start_latlng)
-      allActivities = allActivities.concat(mapActivities)
-      page++
-    } while (fetched.length === perPage)
-
-    // Cache activities and timestamp
-    localStorage.setItem(this.activitiesCacheKey, JSON.stringify(allActivities))
-    localStorage.setItem(this.activitiesCacheTimeKey, Math.floor(Date.now() / 1000).toString())
-    return allActivities
+    this.client = createStravaClient({
+      onRateLimit: (info) => this.onRateLimit?.(info),
+    })
   }
 
-  /**
-   * Get activities from cache if fresh, otherwise fetch from Strava and cache.
-   */
-  public async getCachedActivities(forceRefresh = false): Promise<StravaActivity[]> {
-    const cacheTimeStr = localStorage.getItem(this.activitiesCacheTimeKey)
-    const cacheStr = localStorage.getItem(this.activitiesCacheKey)
-    const now = Math.floor(Date.now() / 1000)
-    if (!forceRefresh && cacheTimeStr && cacheStr) {
-      const cacheTime = parseInt(cacheTimeStr)
-      if (now - cacheTime < this.cacheTTL) {
-        try {
-          const cached = JSON.parse(cacheStr)
-          if (Array.isArray(cached)) {
-            return cached
-          }
-        } catch {}
-      }
-    }
-    // If no valid cache, fetch and cache
-    return await this.fetchAllActivitiesAndCache()
-  }
+  // ---------------------------------------------------------------
+  // Auth
+  // ---------------------------------------------------------------
 
   private loadTokenFromStorage(): void {
     this.accessToken = localStorage.getItem('strava_access_token')
@@ -144,9 +140,21 @@ export class StravaService {
     }
   }
 
+  /**
+   * Refresh the access token. Uses a single-flight promise so that N
+   * concurrent requests that all notice the token is stale share one
+   * refresh round-trip instead of racing to invalidate each other.
+   */
   public async refreshToken(): Promise<void> {
-    const refreshToken = localStorage.getItem('strava_refresh_token')
+    if (this.refreshPromise) return this.refreshPromise
+    this.refreshPromise = this._performRefresh().finally(() => {
+      this.refreshPromise = null
+    })
+    return this.refreshPromise
+  }
 
+  private async _performRefresh(): Promise<void> {
+    const refreshToken = localStorage.getItem('strava_refresh_token')
     if (!refreshToken) {
       throw new Error('No refresh token available')
     }
@@ -198,11 +206,18 @@ export class StravaService {
   }
 
   public logout(): void {
-    localStorage.removeItem('strava_activities_cache')
+    this.clearCache()
     this.clearTokenFromStorage()
   }
 
-  private async makeAuthenticatedRequest(url: string) {
+  // ---------------------------------------------------------------
+  // HTTP
+  // ---------------------------------------------------------------
+
+  private async makeAuthenticatedRequest<T>(
+    path: string,
+    params?: Record<string, string | number | undefined>,
+  ): Promise<T> {
     if (!this.accessToken) {
       throw new Error('Not authenticated')
     }
@@ -213,14 +228,16 @@ export class StravaService {
     }
 
     try {
-      const response = await axios.get(url, {
+      const response = await this.client.get<T>(path, {
+        baseURL: STRAVA_API_BASE_URL,
+        params,
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
         },
       })
       return response.data
-    } catch (error: any) {
-      if (error.response?.status === 401) {
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
         this.clearTokenFromStorage()
         throw new Error('Authentication failed')
       }
@@ -228,20 +245,163 @@ export class StravaService {
     }
   }
 
-  public async getActivities(page = 1, perPage = 30): Promise<StravaActivity[]> {
-    const url = `${STRAVA_BASE_URL}/athlete/activities?page=${page}&per_page=${perPage}`
-    return await this.makeAuthenticatedRequest(url)
-    // This method is used by fetchAllActivitiesAndCache for pagination
+  // ---------------------------------------------------------------
+  // Activities
+  // ---------------------------------------------------------------
+
+  public async getActivities(
+    page = 1,
+    perPage = 30,
+    afterTimestamp?: number,
+  ): Promise<StravaActivity[]> {
+    const params: Record<string, string | number | undefined> = {
+      page,
+      per_page: perPage,
+    }
+    if (afterTimestamp) params.after = afterTimestamp
+    return this.makeAuthenticatedRequest<StravaActivity[]>('/athlete/activities', params)
   }
 
   public async getActivity(id: number): Promise<StravaActivity> {
-    const url = `${STRAVA_BASE_URL}/activities/${id}`
-    return await this.makeAuthenticatedRequest(url)
+    return this.makeAuthenticatedRequest<StravaActivity>(`/activities/${id}`)
   }
 
   public async getActivityStream(id: number, types: string[] = ['latlng', 'altitude', 'time']) {
-    const typeString = types.join(',')
-    const url = `${STRAVA_BASE_URL}/activities/${id}/streams/${typeString}?key_by_type=true`
-    return await this.makeAuthenticatedRequest(url)
+    return this.makeAuthenticatedRequest(`/activities/${id}/streams/${types.join(',')}`, {
+      key_by_type: 'true',
+    })
+  }
+
+  // ---------------------------------------------------------------
+  // Sync
+  // ---------------------------------------------------------------
+
+  /**
+   * Public entry point used by the UI. Returns the full mapped list of
+   * activities, using cache + incremental sync whenever possible.
+   *
+   *   - If `forceRefresh` → discard cache and re-download everything.
+   *   - If cache is fresh (< TTL) and no `forceIncremental` → return cached.
+   *   - Otherwise → fetch only activities newer than the newest cached
+   *     activity and merge them into the cache.
+   */
+  public async getCachedActivities(
+    optionsOrForce: boolean | GetCachedActivitiesOptions = false,
+  ): Promise<StravaActivity[]> {
+    const options: GetCachedActivitiesOptions =
+      typeof optionsOrForce === 'boolean' ? { forceRefresh: optionsOrForce } : optionsOrForce
+
+    const { forceRefresh = false, forceIncremental = false, onProgress } = options
+
+    const cached = this.loadCachedActivities()
+    const cacheTimeStr = localStorage.getItem(this.activitiesCacheTimeKey)
+    const now = Math.floor(Date.now() / 1000)
+
+    if (!forceRefresh && !forceIncremental && cacheTimeStr && cached.length > 0) {
+      const cacheAge = now - parseInt(cacheTimeStr, 10)
+      if (Number.isFinite(cacheAge) && cacheAge < this.cacheTTL) {
+        return cached
+      }
+    }
+
+    const afterTimestamp =
+      !forceRefresh && cached.length > 0 ? this.newestStartDate(cached) : undefined
+
+    return this.fetchAllActivitiesAndCache({
+      afterTimestamp,
+      existing: forceRefresh ? [] : cached,
+      onProgress,
+    })
+  }
+
+  /**
+   * Fetch activities from Strava with bounded-concurrency paging, merge
+   * them with `existing` (deduped by id) and persist the result.
+   */
+  public async fetchAllActivitiesAndCache(
+    params: {
+      afterTimestamp?: number
+      existing?: StravaActivity[]
+      onProgress?: (progress: SyncProgress) => void
+    } = {},
+  ): Promise<StravaActivity[]> {
+    const { afterTimestamp, existing = [], onProgress } = params
+
+    const byId = new Map<number, StravaActivity>(existing.map((a) => [a.id, a]))
+    let pagesFetched = 0
+    let page = 1
+    let done = false
+
+    while (!done) {
+      const pageNumbers = Array.from({ length: SYNC_CONCURRENCY }, (_, i) => page + i)
+      const batch = await Promise.all(
+        pageNumbers.map((p) => this.getActivities(p, SYNC_PAGE_SIZE, afterTimestamp)),
+      )
+
+      for (const pageItems of batch) {
+        pagesFetched += 1
+        for (const activity of pageItems) {
+          if (activity.start_latlng) {
+            byId.set(activity.id, activity)
+          }
+        }
+        if (pageItems.length < SYNC_PAGE_SIZE) {
+          done = true
+        }
+      }
+
+      onProgress?.({ pagesFetched, activitiesKnown: byId.size })
+      page += SYNC_CONCURRENCY
+    }
+
+    const merged = Array.from(byId.values()).sort(
+      (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+    )
+
+    this.writeCache(merged)
+    return merged
+  }
+
+  private loadCachedActivities(): StravaActivity[] {
+    try {
+      const raw = localStorage.getItem(this.activitiesCacheKey)
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? (parsed as StravaActivity[]) : []
+    } catch {
+      return []
+    }
+  }
+
+  private writeCache(activities: StravaActivity[]): void {
+    try {
+      localStorage.setItem(this.activitiesCacheKey, JSON.stringify(activities))
+      localStorage.setItem(
+        this.activitiesCacheTimeKey,
+        Math.floor(Date.now() / 1000).toString(),
+      )
+    } catch (error) {
+      // Most likely a QuotaExceededError on localStorage. Don't crash
+      // the sync — warn and continue; subsequent syncs will retry.
+      console.warn('[Strava] Failed to write activities cache', error)
+    }
+  }
+
+  private clearCache(): void {
+    localStorage.removeItem(this.activitiesCacheKey)
+    localStorage.removeItem(this.activitiesCacheTimeKey)
+  }
+
+  private newestStartDate(activities: StravaActivity[]): number | undefined {
+    let newest = 0
+    for (const activity of activities) {
+      const t = new Date(activity.start_date).getTime()
+      if (Number.isFinite(t) && t > newest) newest = t
+    }
+    if (newest === 0) return undefined
+    // Strava expects a Unix-epoch second. Activities whose start_date
+    // equals `after` would be excluded — add 1s so we don't re-download
+    // the activity we're anchoring on.
+    return Math.floor(newest / 1000) + 1
   }
 }
