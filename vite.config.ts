@@ -14,8 +14,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // `createWebHistory` means every route must be served by
+        // `index.html`; without this, hard-navigations to
+        // `/auth/callback` (or any client-side route) would 404 when
+        // the PWA is offline.
+        navigateFallback: '/index.html',
+        // Don't catch real asset or API requests with the SPA fallback.
+        navigateFallbackDenylist: [/^\/assets\//, /\.[^/]+$/],
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'pwa-icon.svg'],
       manifest: {
         name: 'Strava Activity Map',
         short_name: 'StravaMap',
@@ -24,14 +31,18 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
+          // A single SVG covers every size — Chrome/Edge/Firefox all
+          // accept `sizes: "any"` on vector icons. We also flag it as
+          // maskable so Android can apply its adaptive-icon mask.
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
+            src: 'pwa-icon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any maskable',
           },
           {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
+            src: 'apple-touch-icon.png',
+            sizes: '180x180',
             type: 'image/png',
           },
         ],

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!--
+    Monochrome mask icon for Safari pinned tabs. Safari uses the path
+    outlines only and renders them in the tab tint colour, so no
+    background or gradient.
+  -->
+  <path
+    d="M4 17l4 -6l5 4l4 -5"
+    fill="none"
+    stroke="black"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="17" cy="10" r="1.75" fill="black"/>
+</svg>

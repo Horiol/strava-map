@@ -20,15 +20,24 @@
 
   const mapStore = useMapStore()
 
-  // Import Leaflet CSS
   import 'leaflet/dist/leaflet.css'
+  // Bundle the default marker assets via Vite instead of loading them
+  // from cdnjs. This keeps them in sync with the installed Leaflet
+  // version, removes the runtime dependency on an external CDN (so
+  // markers still work when the PWA is offline), and ships them as
+  // content-hashed static assets.
+  import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
+  import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
+  import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png'
 
-  // Fix Leaflet default markers in Vite/Webpack
-  delete (L.Icon.Default.prototype as any)._getIconUrl
+  // `_getIconUrl` is Leaflet's internal default-icon URL factory; it
+  // hard-codes image names we don't ship, so we delete it and feed
+  // Leaflet our bundled URLs directly.
+  delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl
   L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    iconRetinaUrl: markerIconRetinaUrl,
+    iconUrl: markerIconUrl,
+    shadowUrl: markerShadowUrl,
   })
 
   interface Props {
@@ -158,8 +167,7 @@
   const highlightActivity = (activityId: number | null) => {
     if (!map || !activityLayers) return
 
-    // Reset all activity styles
-    activityLayers.eachLayer((layer: any) => {
+    activityLayers.eachLayer((layer) => {
       if (layer instanceof L.Polyline) {
         layer.setStyle({
           weight: 3,
@@ -168,13 +176,11 @@
       }
     })
 
-    // Highlight and zoom to selected activity
     if (activityId) {
       const activity = props.activities.find((a) => a.id === activityId)
       if (activity) {
-        // Highlight polyline if available
         if (activity.map?.summary_polyline) {
-          activityLayers.eachLayer((layer: any) => {
+          activityLayers.eachLayer((layer) => {
             if (layer instanceof L.Polyline) {
               layer.setStyle({
                 weight: 5,

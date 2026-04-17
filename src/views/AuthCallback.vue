@@ -1,141 +1,116 @@
 <script setup lang="ts">
-  import { Capacitor } from '@capacitor/core';
-  import { useRouter } from 'vue-router';
-  import { onMounted } from 'vue';
+  import { useRoute, useRouter } from 'vue-router'
+  import { onMounted, ref } from 'vue'
   import { stravaConfig } from '@/config/strava'
   import { StravaService } from '@/services/strava'
 
-  const router = useRouter();
+  const router = useRouter()
+  const route = useRoute()
   const stravaService = new StravaService(stravaConfig)
 
-  onMounted( async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
+  const errorMessage = ref<string | null>(null)
 
-    console.log('AuthCallback component mounted');
-    console.log('URL search params:', window.location.search);
-    console.log('Authorization code:', code);
-    console.log('Is native platform:', Capacitor.isNativePlatform());
-    console.log('User agent:', navigator.userAgent);
+  /**
+   * Read a string query param. `route.query.code` may be `string`,
+   * `string[]` or `undefined` depending on the URL shape — collapse
+   * everything to a single string or `null` so the caller doesn't
+   * have to do the narrowing itself.
+   */
+  function queryString(name: string): string | null {
+    const raw = route.query[name]
+    if (typeof raw === 'string') return raw
+    if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0]
+    return null
+  }
 
-    if (code) {
+  onMounted(async () => {
+    const code = queryString('code')
+    const errorParam = queryString('error')
+
+    if (errorParam) {
+      errorMessage.value = `Authentication failed: ${errorParam}`
+      setTimeout(() => router.push('/'), 2000)
+      return
+    }
+
+    if (!code) {
+      errorMessage.value = 'No authorization code found in the callback URL.'
+      setTimeout(() => router.push('/'), 2000)
+      return
+    }
+
+    try {
       await stravaService.exchangeCodeForToken(code)
-      router.push('/');
-      // if (Capacitor.isNativePlatform()) {
-      //   router.push('/');
-      // } else {
-      //   console.log('Authorization code received in browser');
-      //   tryOpenNativeApp(code);
-      // }
-    } else {
-      console.error('No authorization code found in URL');
-      setTimeout(() => {
-        router.push('/');
-      }, 2000);
+      router.push('/')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Token exchange failed'
+      errorMessage.value = message
+      console.error('[AuthCallback] Token exchange failed', err)
+      setTimeout(() => router.push('/'), 3000)
     }
-  });
-
-  const tryOpenNativeApp = (code: string) => {
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    if (isAndroid || isIOS) {
-      console.log('Mobile browser detected, attempting to open native app');
-
-      // Try to open the native app
-      const nativeUrl = `stravamap://auth/callback?code=${code}`;
-
-      // Create a hidden iframe to attempt app launch
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = nativeUrl;
-      document.body.appendChild(iframe);
-
-      // Fallback timer - if app doesn't open, continue with web flow
-      const fallbackTimer = setTimeout(() => {
-        console.log('Native app not available, continuing with web flow');
-        handleWebAuth(code);
-        document.body.removeChild(iframe);
-      }, 2500);
-
-      // If the page loses focus, assume app opened successfully
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          console.log('Page hidden, app likely opened');
-          clearTimeout(fallbackTimer);
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      // Additional fallback for older browsers
-      window.addEventListener('blur', () => {
-        clearTimeout(fallbackTimer);
-      }, { once: true });
-
-    } else {
-      // Desktop browser - just handle web auth
-      console.log('Desktop browser detected');
-      handleWebAuth(code);
-    }
-  };
-
-  const handleWebAuth = (code: string) => {
-    console.log('Handling web authentication with code:', code);
-    // Redirect to home page after processing
-    setTimeout(() => {
-      router.push('/');
-    }, 1500);
-  };
+  })
 </script>
 
 <template>
   <div class="auth-callback">
     <div class="callback-content">
-      <div class="spinner"></div>
+      <div class="spinner" role="status" aria-live="polite"></div>
+      <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+      <p v-else class="status">Finishing sign-in…</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.auth-callback {
-  height: calc(100vh - 60px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  text-align: center;
-}
+  .auth-callback {
+    min-height: calc(100vh - var(--header-height, 60px));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-brand) 80%, #ff8a3d) 0%,
+      var(--color-brand) 55%,
+      color-mix(in srgb, var(--color-brand) 20%, #7a2400) 100%
+    );
+    color: #fff;
+    text-align: center;
+  }
 
-.callback-content {
-  max-width: 400px;
-  padding: 2rem;
-}
+  .callback-content {
+    max-width: 400px;
+    padding: var(--space-6);
+  }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 2rem;
-}
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: var(--radius-full);
+    animation: spin 1s linear infinite;
+    margin: 0 auto var(--space-4);
+  }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation: none;
+    }
+  }
 
-.callback-content h2 {
-  margin: 0 0 1rem 0;
-  font-weight: 300;
-}
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 
-.callback-content p {
-  margin: 0;
-  opacity: 0.9;
-}
+  .status,
+  .error {
+    margin: 0;
+    opacity: 0.95;
+  }
+
+  .error {
+    font-weight: 600;
+  }
 </style>
