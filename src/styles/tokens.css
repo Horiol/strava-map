@@ -1,0 +1,119 @@
+/**
+ * Design tokens — single source of truth for colors, spacing, radii,
+ * shadows and typography.
+ *
+ * Use these variables from components instead of hard-coded values so
+ * theming (dark mode, high contrast, brand changes) only needs to happen
+ * here.
+ */
+
+:root {
+  /* Brand — Strava orange family */
+  --color-brand: #fc4c02;
+  --color-brand-600: #e04800;
+  --color-brand-700: #b93c00;
+  --color-brand-50: #fff3f0;
+  --color-brand-100: #ffe0d5;
+
+  /* Surfaces */
+  --color-bg: #ffffff;
+  --color-surface: #f7f8fa;
+  --color-surface-2: #ffffff;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+
+  /* Text */
+  --color-text: #111827;
+  --color-text-muted: #57606a;
+  --color-text-inverse: #ffffff;
+
+  /* Status */
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-success: #059669;
+  --color-warning: #d97706;
+
+  /* Activity palette — keep in sync with utils/activityStyle.ts */
+  --color-activity-ride: #fc4c02;
+  --color-activity-run: #a518a3;
+  --color-activity-walk: #00a884;
+  --color-activity-hike: #8b6914;
+  --color-activity-swim: #0077be;
+  --color-activity-workout: #7b68ee;
+  --color-activity-yoga: #c084fc;
+  --color-activity-weight: #4b0082;
+  --color-activity-default: #fc4c02;
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --shadow-brand: 0 8px 24px rgba(252, 76, 2, 0.25);
+
+  /* Typography */
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 2rem;
+  --font-size-4xl: 2.5rem;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+
+  /* Layout */
+  --header-height: 60px;
+  --sidebar-width: 400px;
+  --z-header: 100;
+  --z-overlay: 199;
+  --z-sidebar: 200;
+  --z-loading: 1000;
+  --z-control: 1001;
+}
+
+/* Dark theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0b0d10;
+    --color-surface: #14181d;
+    --color-surface-2: #1b2026;
+    --color-border: #242b33;
+    --color-border-strong: #323a44;
+
+    --color-text: #f3f4f6;
+    --color-text-muted: #9ca3af;
+
+    --color-brand-50: #2a1408;
+    --color-brand-100: #3a1a0a;
+
+    --color-danger-bg: #2a0f10;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  }
+}
