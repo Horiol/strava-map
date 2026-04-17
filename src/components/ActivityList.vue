@@ -46,7 +46,7 @@
             :style="{ backgroundColor: getActivityColor(activity.type) }"
             :title="activity.type"
           >
-            <ActivityIcon :type="activity.type" :size="18" color="#fff" />
+            <ActivityIcon :type="activity.type" :size="18" color="#fff" decorative />
           </div>
           <div class="activity-info">
             <h3 class="activity-name">

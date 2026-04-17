@@ -54,9 +54,16 @@ body {
   scrollbar-color: var(--color-border-strong) var(--color-surface);
 }
 
-/* Focus styles — only show the bright outline on keyboard focus,
-   not on every mouse click. */
+/* Focus styles — keep a visible ring for keyboard users. Browsers that
+   support :focus-visible hide it on mouse focus; browsers that don't
+   still get a visible outline from the plain :focus rule. */
 :focus {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+:focus:not(:focus-visible) {
   outline: none;
 }
 

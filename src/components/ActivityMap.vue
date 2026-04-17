@@ -16,7 +16,7 @@
   import { decodePolyline } from '@/utils/polyline'
   import { useMapStore } from '@/stores/map'
   import { formatDate } from '@/utils/date'
-  import { getActivityColor, getActivityIcon } from '@/utils/activityStyle'
+  import { getActivityColor, getActivityIconSvgMarkup } from '@/utils/activityStyle'
 
   const mapStore = useMapStore()
 
@@ -108,7 +108,7 @@
             icon: L.divIcon({
               className: 'activity-start-marker',
               html: `<div class="marker-content" style="background-color: ${getActivityColor(activity.type)}">
-                      <svg class="marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${getActivityIcon(activity.type)}</svg>
+                      <svg class="marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${getActivityIconSvgMarkup(activity.type)}</svg>
                     </div>`,
               iconSize: [28, 28],
               iconAnchor: [14, 14],

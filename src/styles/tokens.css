@@ -33,16 +33,12 @@
   --color-success: #059669;
   --color-warning: #d97706;
 
-  /* Activity palette — keep in sync with utils/activityStyle.ts */
-  --color-activity-ride: #fc4c02;
-  --color-activity-run: #a518a3;
-  --color-activity-walk: #00a884;
-  --color-activity-hike: #8b6914;
-  --color-activity-swim: #0077be;
-  --color-activity-workout: #7b68ee;
-  --color-activity-yoga: #c084fc;
-  --color-activity-weight: #4b0082;
-  --color-activity-default: #fc4c02;
+  /* Activity palette — intentionally not declared here. The values
+     are injected at app start by `applyActivityColorsToRoot()` in
+     `@/utils/activityStyle` as `--color-activity-<lowercase-type>`
+     custom properties (plus `--color-activity-default`). Keeping the
+     source of truth in TypeScript avoids drift with the values that
+     Leaflet needs at runtime for polyline colors. */
 
   /* Radii */
   --radius-xs: 4px;

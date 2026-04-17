@@ -5,6 +5,9 @@
       @click="toggleMobileList"
       class="mobile-list-toggle"
       :class="{ active: showMobileList }"
+      type="button"
+      :aria-label="showMobileList ? 'Close activity list' : 'Open activity list'"
+      :aria-expanded="showMobileList"
     >
       <span></span>
       <span></span>
@@ -12,13 +15,18 @@
     </button>
 
     <div v-if="isAuthenticated" class="auth-controls">
-      <button @click="handleLogout" class="logout-button">Logout</button>
+      <button @click="handleLogout" class="logout-button" type="button">Logout</button>
     </div>
   </Teleport>
 
   <div v-if="error" class="error-banner">
     <p>{{ error }}</p>
-    <button @click="error = null" class="error-close">×</button>
+    <button
+      @click="error = null"
+      class="error-close"
+      type="button"
+      aria-label="Dismiss error"
+    >×</button>
   </div>
 
   <main class="app-main">
@@ -30,7 +38,7 @@
 
       <div class="auth-prompt-content">
         <div class="auth-prompt-badge">
-          <ActivityIcon type="Ride" :size="20" />
+          <ActivityIcon type="Ride" :size="20" decorative />
           <span>Your adventures, on the map</span>
         </div>
 
@@ -49,8 +57,9 @@
             <span
               class="feature-icon"
               :style="{ backgroundColor: getActivityColor(feature.type) }"
+              aria-hidden="true"
             >
-              <ActivityIcon :type="feature.type" :size="22" color="#fff" />
+              <ActivityIcon :type="feature.type" :size="22" color="#fff" decorative />
             </span>
             <div class="feature-text">
               <h3>{{ feature.title }}</h3>
@@ -127,6 +136,7 @@
   import { StravaService, type StravaActivity } from '@/services/strava'
   import { stravaConfig } from '@/config/strava'
   import { getActivityColor } from '@/utils/activityStyle'
+  import { useIsMobile } from '@/composables/useMediaQuery'
 
   const authFeatures = [
     {
@@ -195,8 +205,9 @@
 
         // Load activities
         await loadActivities()
-      } catch (err: any) {
-        error.value = err.message || 'Authentication failed'
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Authentication failed'
+        error.value = message
         console.error('Auth error:', err)
       } finally {
         loading.value = false
@@ -211,9 +222,10 @@
       loading.value = true
       error.value = null
       activities.value = await stravaService.getCachedActivities(forceRefresh)
-    } catch (err: any) {
-      error.value = err.message || 'Failed to load activities'
-      if (err.message.includes('Authentication failed')) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load activities'
+      error.value = message
+      if (message.includes('Authentication failed')) {
         isAuthenticated.value = false
         stravaService.logout()
       }
@@ -225,8 +237,7 @@
   // Handle activity selection
   const handleActivitySelected = (activity: StravaActivity) => {
     selectedActivity.value = activity.id
-    // Close mobile list when activity is selected
-    if (window.innerWidth <= 768) {
+    if (isMobile.value) {
       showMobileList.value = false
     }
   }
@@ -245,10 +256,9 @@
     showMobileList.value = !showMobileList.value
   }
 
-  // Computed properties
-  const isMobile = computed(() => {
-    return window.innerWidth <= 768
-  })
+  // Reactive mobile breakpoint — stays in sync with the
+  // `@media (max-width: 768px)` rules via `useMediaQuery`.
+  const isMobile = useIsMobile()
 
   // Filter activities based on type and search query
   const filteredActivities = computed(() => {
