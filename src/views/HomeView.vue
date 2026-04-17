@@ -15,6 +15,32 @@
     </button>
 
     <div v-if="isAuthenticated" class="auth-controls">
+      <button
+        @click="handleRefresh"
+        class="refresh-button"
+        :class="{ spinning: loading }"
+        :disabled="loading"
+        :title="loading ? 'Refreshing…' : 'Refresh activities'"
+        :aria-label="loading ? 'Refreshing activities' : 'Refresh activities'"
+        type="button"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+          <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+          <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+        </svg>
+      </button>
       <button @click="handleLogout" class="logout-button" type="button">Logout</button>
     </div>
   </Teleport>
@@ -133,7 +159,11 @@
   import ActivityMap from '@/components/ActivityMap.vue'
   import ActivityList from '@/components/ActivityList.vue'
   import ActivityIcon from '@/components/ActivityIcon.vue'
-  import { StravaService, type StravaActivity } from '@/services/strava'
+  import {
+    StravaService,
+    type StravaActivity,
+    type GetCachedActivitiesOptions,
+  } from '@/services/strava'
   import { stravaConfig } from '@/config/strava'
   import { getActivityColor } from '@/utils/activityStyle'
   import { useIsMobile } from '@/composables/useMediaQuery'
@@ -215,13 +245,13 @@
     }
   }
 
-  // Load activities from cache or Strava
-  const loadActivities = async (forceRefresh = false) => {
+  // Load activities from cache or Strava.
+  const loadActivities = async (options: GetCachedActivitiesOptions = {}) => {
     if (!isAuthenticated.value) return
     try {
       loading.value = true
       error.value = null
-      activities.value = await stravaService.getCachedActivities(forceRefresh)
+      activities.value = await stravaService.getCachedActivities(options)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load activities'
       error.value = message
@@ -233,6 +263,10 @@
       loading.value = false
     }
   }
+
+  // Warm refresh: bypass the cache TTL and fetch only activities newer
+  // than the newest one we already have (incremental sync).
+  const handleRefresh = () => loadActivities({ forceIncremental: true })
 
   // Handle activity selection
   const handleActivitySelected = (activity: StravaActivity) => {
@@ -404,6 +438,45 @@
 
 .logout-button:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.refresh-button {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--color-text-inverse);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.refresh-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.refresh-button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.refresh-button.spinning svg {
+  animation: refresh-spin 1s linear infinite;
+}
+
+@keyframes refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ---------------- Auth prompt (hero) ---------------- */
